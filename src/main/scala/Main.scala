@@ -49,6 +49,26 @@ object Main {
         })
     }
 
+    def extractingPattern(sequence: List[Event]): List[List[Product]] = {
+
+        def recursive(acc: List[List[Product]], remainingSequence: List[Event]): List[List[Product]] =
+        remainingSequence match {
+            case ProductViewedEvent(date, product) :: tailEventList =>
+                recursive((product +: acc.head) :: acc.tail, tailEventList)
+            case AddedToCartEvent(date,product) :: tailEventList =>
+                recursive(Nil :: acc,tailEventList)
+            case OtherEvent(date) :: tailEventList =>
+                if (acc.head != Nil) recursive(Nil::acc,tailEventList)
+                else recursive(acc,tailEventList)
+            case NoEvent(date) :: tailEventList =>
+                if (acc.head != Nil) recursive(Nil::acc,tailEventList)
+                else recursive(acc,tailEventList)
+
+            case Nil => acc
+        }
+        recursive(List(Nil),sequence)
+    }
+
     def main(args: Array[String]): Unit = {
 
         val conf = new SparkConf().setAppName("frequency_mapping").setMaster("local")
@@ -57,14 +77,20 @@ object Main {
         val path_to_file = "data.txt"
         val data: RDD[UserEvent] = sc.textFile(path_to_file).map(jsonToObject)
 
-        val groupedSortedData = data.map(userEvent => (userEvent.anonymousId, List(userEvent.event))).reduceByKey((eventList1, eventList2) => eventList1 ++ eventList2).mapValues(_.sortBy(_.receivedAt))
+        val groupedSortedData = data
+            .map(userEvent => (userEvent.anonymousId, List(userEvent.event)))
+            .reduceByKey((eventList1, eventList2) => eventList1 ++ eventList2)
+            .mapValues(events => extractingPattern(events.sortBy(_.receivedAt)))
+            .filter(pair => pair._2.tail != Nil)
+            .mapValues(x => if (x.head == Nil) x.tail else x)
+                .mapValues(_.flatten).map(x => (x._2,1)).reduceByKey(_+_)
 
         //        val groupByData: RDD[(String, Iterable[UserEvent])] = data.groupBy(userEvent => userEvent.anonymousId)
 
         //        val groupByKeyData: RDD[(String,Iterable[UserEvent])] = data.map(userEvent => (userEvent.anonymousId, userEvent))
         //        groupByData == groupByKeyData.groupByKey()
         //
-        println(groupedSortedData.take(10) mkString "\n")
+        println(groupedSortedData.take(100) mkString "\n")
 
     }
 }
