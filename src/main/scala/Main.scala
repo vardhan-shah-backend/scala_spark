@@ -55,10 +55,16 @@ object Main {
 
         val sc = new SparkContext(conf)
         val path_to_file = "data.txt"
-        val data = sc.textFile(path_to_file).map(line => {
-            jsonToObject(line)
-        })
+        val data: RDD[UserEvent] = sc.textFile(path_to_file).map(jsonToObject)
 
-        println(data.take(1) mkString "\n")
+        val groupedSortedData = data.map(userEvent => (userEvent.anonymousId, List(userEvent.event))).reduceByKey((eventList1, eventList2) => eventList1 ++ eventList2).mapValues(_.sortBy(_.receivedAt))
+
+        //        val groupByData: RDD[(String, Iterable[UserEvent])] = data.groupBy(userEvent => userEvent.anonymousId)
+
+        //        val groupByKeyData: RDD[(String,Iterable[UserEvent])] = data.map(userEvent => (userEvent.anonymousId, userEvent))
+        //        groupByData == groupByKeyData.groupByKey()
+        //
+        println(groupedSortedData.take(10) mkString "\n")
+
     }
 }
