@@ -1,0 +1,5 @@
+[0m[[0m[33mwarn[0m] [0m[0m/Users/vardhanshah/Projects/scala_spark/src/main/scala/Main.scala:3:8: Main has a main method with parameter type Array[String], but Main will not be a runnable program.[0m
+[0m[[0m[33mwarn[0m] [0m[0m  Reason: main method must have exact signature (Array[String])Unit[0m
+[0m[[0m[33mwarn[0m] [0m[0mobject Main {[0m
+[0m[[0m[33mwarn[0m] [0m[0m       ^[0m
+[0m[[0m[33mwarn[0m] [0m[0mone warning found[0m

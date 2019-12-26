@@ -1,0 +1,3 @@
+[debug] "not up to date. inChanged = true, force = false
+[debug] Updating ProjectRef(uri("file:/Users/vardhanshah/Projects/scala_spark/project/"), "scala_spark-build")...
+[debug] Done updating ProjectRef(uri("file:/Users/vardhanshah/Projects/scala_spark/project/"), "scala_spark-build")
