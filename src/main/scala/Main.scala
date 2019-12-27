@@ -3,7 +3,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 
 import org.apache.spark.rdd.RDD
-import org.apache.spark.{SparkConf, SparkContext}
+import org.apache.spark.{RangePartitioner, SparkConf, SparkContext}
 import net.liftweb.json._
 
 import scala.annotation.tailrec
@@ -104,8 +104,10 @@ object Main {
 
         val productsRDD = sc.parallelize(products)
 
-        val prodFreqMap = productsRDD.map(productList => (productList,1)).reduceByKey(_ + _)
+        val prodFreqMap = productsRDD.map(productList => (productList, 1)).reduceByKey(_ + _)
 
-        writeFile("result.txt", prodFreqMap.collect() mkString "\n")
+        val result = prodFreqMap.collect()
+
+        writeFile("result.txt", result mkString "\n")
     }
 }
