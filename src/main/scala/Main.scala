@@ -36,27 +36,45 @@ object Main {
 
     val simpleDateFormatter = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")
 
+    val FILE_NAME = "section_data.txt"
+
+
     implicit val formats = new DefaultFormats {
         override def dateFormatter = simpleDateFormatter
     }
 
-    def jsonToObject(json: String): UserEvent = {
 
-        val parsedJson = parse(json)
+    def filteredUserRecoPDP(jsonString: String) = {
 
-        val anonymousId = (parsedJson \ "anonymousId").extract[Option[String]].orNull
+        val parsedJson = parse(jsonString)
 
-        val receivedAt = (parsedJson \ "receivedAt").extract[Option[java.util.Date]].orNull
+        val section: Option[String] = (parsedJson \ Constants.PROPERTIES \ Constants.SECTION).extractOrElse[Option[String]](None)
 
-        val eventName = (parsedJson \ "event").extract[Option[String]]
+        section match {
+            case Some(_) => true
+            case None => false
+        }
 
-        val productId = (parsedJson \ "properties" \ "product_id").extractOrElse[Option[String]](None)
-        val productType = (parsedJson \ "properties" \ "product_type").extractOrElse[Option[String]](None)
+    }
+    def jsonToObject(jsonString: String): UserEvent = {
+
+        val parsedJson = parse(jsonString)
+
+        val anonymousId = (parsedJson \ Constants.ANONYMOUS_ID).extract[Option[String]].orNull
+
+        val receivedAt = (parsedJson \ Constants.RECEIVED_AT).extract[Option[java.util.Date]].orNull
+
+        val eventName = (parsedJson \ Constants.EVENT).extract[Option[String]]
+
+
+
+        val productId = (parsedJson \ Constants.PROPERTIES \ Constants.PRODUCT_ID).extractOrElse[Option[String]](None)
+        val productType = (parsedJson \ Constants.PROPERTIES \ Constants.PRODUCT_TYPE).extractOrElse[Option[String]](None)
 
 
         UserEvent(anonymousId, eventName match {
-            case Some(eventName) if eventName == "product_viewed" => ProductViewedEvent(receivedAt, Product(productId, productType, inCart = false))
-            case Some(eventName) if eventName == "product_added_to_cart" => AddedToCartEvent(receivedAt, Product(productId, productType, inCart = true))
+            case Some(eventName) if eventName == Constants.PRODUCT_VIEWED_EVENT => ProductViewedEvent(receivedAt, Product(productId, productType, inCart = false))
+            case Some(eventName) if eventName == Constants.PRODUCT_ADDED_TO_CART_EVENT => AddedToCartEvent(receivedAt, Product(productId, productType, inCart = true))
             case _ => OtherOrNoEvent(receivedAt)
         })
     }
@@ -114,19 +132,26 @@ object Main {
 
     def main(args: Array[String]): Unit = {
 
-        val conf = new SparkConf().setAppName("frequency_mapping").setMaster("local")
+        val conf = new SparkConf().setAppName(Constants.APP_NAME).setMaster(Constants.MASTER)
 
         val sc = new SparkContext(conf)
-        val path_to_file = "data.txt"
-        val data: RDD[UserEvent] = sc.textFile(path_to_file).map(jsonToObject)
+
+        val data: RDD[UserEvent] = sc.textFile(FILE_NAME).filter(filteredUserRecoPDP).map(jsonToObject)
 
         val result: RDD[(List[Product], Int)] = prodSeqFreqMapper(data)
 
         val resultString: RDD[String] = freqMapperToString(result)
 
-//        println(freqMapperToString(result).collect() mkString "\n")
+        val stringProductSeqs: Array[String] = resultString.collect()
 
-//        resultString.saveAsTextFile("result")
+        val prettyRepr = resultString.collect() mkString "\n"
+
+        writeFile("result.txt",prettyRepr)
+
+        resultString.saveAsTextFile("result")
+
+        println(prettyRepr)
+
     }
 
 
