@@ -9,11 +9,14 @@ import net.liftweb.json._
 import scala.annotation.tailrec
 
 case class Product(product_id: Option[String], product_type: Option[String], inCart: Boolean) {
-    override def toString: String =
-
-        product_id.getOrElse(None) + "-->" + product_type.getOrElse(None) + "-->" + {
-            if (inCart) "Carted"
-        }
+    override def toString: String = {
+        val str: StringBuilder = new StringBuilder("[" + product_id.getOrElse(None) + ", " + product_type.getOrElse(None))
+        if (inCart)
+            str.append(", Cart]")
+        else
+            str.append("]")
+        str.toString()
+    }
 }
 
 trait Event {
@@ -86,7 +89,7 @@ object Main {
         bw.close()
     }
 
-     def prodSeqFreqMapper(data: RDD[UserEvent]): RDD[(List[Product],Int)] = {
+    def prodSeqFreqMapper(data: RDD[UserEvent]): RDD[(List[Product], Int)] = {
         val userGroupedEvents = data
             .map(userEvent => (userEvent.anonymousId, List(userEvent.event)))
             .reduceByKey((eventList1, eventList2) => eventList1 ++ eventList2).cache()
@@ -101,6 +104,14 @@ object Main {
     }
 
 
+    def freqMapperToString(prodSeqMap: RDD[(List[Product], Int)]): RDD[String] = {
+
+        prodSeqMap.map(pair => {
+            (pair._1 mkString " -> ") + " : " + pair._2
+        })
+
+    }
+
     def main(args: Array[String]): Unit = {
 
         val conf = new SparkConf().setAppName("frequency_mapping").setMaster("local")
@@ -109,9 +120,13 @@ object Main {
         val path_to_file = "data.txt"
         val data: RDD[UserEvent] = sc.textFile(path_to_file).map(jsonToObject)
 
-        val result: RDD[(List[Product],Int)] = prodSeqFreqMapper(data)
+        val result: RDD[(List[Product], Int)] = prodSeqFreqMapper(data)
 
-        result.saveAsTextFile("result")
+        val resultString: RDD[String] = freqMapperToString(result)
+
+//        println(freqMapperToString(result).collect() mkString "\n")
+
+//        resultString.saveAsTextFile("result")
     }
 
 
