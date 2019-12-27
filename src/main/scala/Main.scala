@@ -86,6 +86,21 @@ object Main {
         bw.close()
     }
 
+     def prodSeqFreqMapper(data: RDD[UserEvent]): RDD[(List[Product],Int)] = {
+        val userGroupedEvents = data
+            .map(userEvent => (userEvent.anonymousId, List(userEvent.event)))
+            .reduceByKey((eventList1, eventList2) => eventList1 ++ eventList2).cache()
+
+        val productSequences: RDD[List[Product]] = userGroupedEvents
+            .mapValues(events => extractingPattern(events.sortBy(_.receivedAt)).map(_.reverse))
+            .values.flatMap(x => x)
+
+
+        val prodSeqFreqMap = productSequences.map(productList => (productList, 1)).reduceByKey(_ + _)
+        prodSeqFreqMap
+    }
+
+
     def main(args: Array[String]): Unit = {
 
         val conf = new SparkConf().setAppName("frequency_mapping").setMaster("local")
@@ -94,20 +109,10 @@ object Main {
         val path_to_file = "data.txt"
         val data: RDD[UserEvent] = sc.textFile(path_to_file).map(jsonToObject)
 
-        val userGroupedEvents = data
-            .map(userEvent => (userEvent.anonymousId, List(userEvent.event)))
-            .reduceByKey((eventList1, eventList2) => eventList1 ++ eventList2).cache()
+        val result: RDD[(List[Product],Int)] = prodSeqFreqMapper(data)
 
-        val products = userGroupedEvents
-            .mapValues(events => extractingPattern(events.sortBy(_.receivedAt)).map(_.reverse))
-            .map(_._2).reduce(_ ++ _)
-
-        val productsRDD = sc.parallelize(products)
-
-        val prodFreqMap = productsRDD.map(productList => (productList, 1)).reduceByKey(_ + _)
-
-        val result = prodFreqMap.collect()
-
-        writeFile("result.txt", result mkString "\n")
+        result.saveAsTextFile("result")
     }
+
+
 }

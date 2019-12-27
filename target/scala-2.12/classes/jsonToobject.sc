@@ -93,11 +93,16 @@
 //extractingPattern(List(true,true,false,false,true,false,true,true,true))
 
 
-val x = List(List(1,2),List(3,4))
-val y = List(List(5,6),List(7,8))
 
-val result = scala.collection.mutable.Map[List[Int],Int]()
 
-x.map(k => result(k) = result.getOrElse(k,0) + 1 )
+val x = List(List(List(1,2),List(3,4)),List(List(5,6,2),List(3,433,4)))
+//val y = List(List(5,6),List(7,8))
 
-result
+x.flatMap(x => x)
+//val result = scala.collection.mutable.Map[List[Int],Int]()
+//
+//x.map(k => result(k) = result.getOrElse(k,0) + 1 )
+//
+//result
+
+
