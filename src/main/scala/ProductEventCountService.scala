@@ -1,6 +1,7 @@
 import net.liftweb.json.{DefaultFormats, parse}
-
 import org.apache.spark.rdd.RDD
+
+import scala.collection.mutable
 
 object ProductEventCountService {
 
@@ -22,15 +23,18 @@ object ProductEventCountService {
 
     case class UserEvent(id: Option[String], event: Event)
 
-    trait Count {
-        val id: String
-        val occurrences: Int
+
+    class Count (
+        var impressionCount: Int,
+        var productViewCount: Int,
+        var addedToCartCount: Int,
+        var productOrderCount: Int
+    ) extends Serializable {
+        override def toString: String = {
+            s"ImpressionCount: $impressionCount ProductViewCount: $productViewCount ATCCount: $addedToCartCount ProductOrderCount: $productOrderCount"
+        }
     }
 
-    case class ImpressionCount(id: String, occurrences: Int) extends Count
-    case class ProductViewCount(id: String, occurrences: Int) extends Count
-    case class AddedToCartCount(id: String, occurrences: Int) extends Count
-    case class ProductOrderCount(id: String, occurrences: Int) extends Count
 
     def apply(): ProductEventCountService = new ProductEventCountService()
 }
@@ -39,7 +43,7 @@ class ProductEventCountService extends Serializable with AbstractService {
 
     import ProductEventCountService._
 
-    type T = (String,(Iterable[ImpressionCount],Iterable[ProductViewCount],Iterable[AddedToCartCount],Iterable[ProductOrderCount]))
+    type T = (String,Iterable[(String, Count)])
 
     def parseJson(jsonString: String): UserEvent = {
 
@@ -73,32 +77,28 @@ class ProductEventCountService extends Serializable with AbstractService {
 
 
 
-    def eventToCount(events: Iterable[Event]): (Iterable[ImpressionCount],Iterable[ProductViewCount],Iterable[AddedToCartCount],Iterable[ProductOrderCount]) = {
+    def eventToCount(events: Iterable[Event]):Iterable[(String,Count)] = {
+        val map: mutable.HashMap[String,Count] = mutable.HashMap()
 
-        val productViewCount: Iterable[ProductViewCount] = events.filter({
-            case _: ProductViewedEvent => true
-            case _ => false
-        }).flatMap(_.productIds).groupBy(x => x).mapValues(_.size).map(pair => ProductViewCount(pair._1,pair._2))
+        events.foreach(event => {
+            event.productIds.foreach(productId => {
+                if (!map.contains(productId)) {
+                    map(productId) = new Count(0,0,0,0)
+                }
+            })
 
-        val productOrderCount: Iterable[ProductOrderCount] = events.filter({
-            case _: ProductOrderedEvent => true
-            case _ => false
-        }).flatMap(_.productIds).groupBy(x => x).mapValues(_.size).map(pair => ProductOrderCount(pair._1,pair._2))
-
-        val addedToCartCount: Iterable[AddedToCartCount] = events.filter({
-            case _: AddedToCartEvent => true
-            case _ => false
-        }).flatMap(_.productIds).groupBy(x => x).mapValues(_.size).map(pair => AddedToCartCount(pair._1,pair._2))
-
-        val impressionCount: Iterable[ImpressionCount] = events.filter({
-            case _: PlpScrollEvent => true
-            case _ => false
-        }).flatMap(_.productIds).groupBy(x => x).mapValues(_.size).map(pair => ImpressionCount(pair._1,pair._2))
-        (impressionCount, productViewCount, addedToCartCount, productOrderCount)
+            event match {
+                case x: ProductViewedEvent => x.productIds.foreach(productId => map(productId).productViewCount += 1)
+                case x: PlpScrollEvent => x.productIds.foreach(map(_).impressionCount += 1)
+                case x: ProductOrderedEvent => x.productIds.foreach(map(_).productOrderCount += 1)
+                case x: AddedToCartEvent => x.productIds.foreach(map(_).addedToCartCount += 1)
+                case _ =>
+            }
+        })
+        map
     }
 
-    def calculate(data: RDD[String]): RDD[(String,(Iterable[ImpressionCount],Iterable[ProductViewCount],Iterable[AddedToCartCount],Iterable[ProductOrderCount]))] = {
-
+    def calculate(data: RDD[String]) = {
         data.map(parseJson).filter({
             case UserEvent(None, event) => false
             case UserEvent(id,event) if event.productIds.isEmpty => false
@@ -107,16 +107,8 @@ class ProductEventCountService extends Serializable with AbstractService {
             .mapValues(eventToCount)
     }
 
-    def resultToString(rdd: RDD[(String,(Iterable[ImpressionCount],Iterable[ProductViewCount],Iterable[AddedToCartCount],Iterable[ProductOrderCount]))]): RDD[String] = {
-
-        val seperator = "------------"
-        rdd.map(pair => {
-            pair._1  + seperator +
-            pair._2._1 mkString "\n" + seperator +
-            pair._2._1 mkString "\n" + seperator +
-            pair._2._3 mkString "\n" + seperator +
-            pair._2._4 mkString "\n"
-        })
+    def resultToString(rdd: RDD[T]) = {
+        rdd.map(_.toString)
     }
 
 
