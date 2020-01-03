@@ -19,7 +19,7 @@ object Main {
     val FILE_NAME = "data.txt"
 
 
-    val productEventCountService: AbstractService = ProductEventCountService()
+    val productEventCountService: AbstractService = UserProductCountService()
 
     val frequencyMapperService: AbstractService = FrequencyMapperService()
 
@@ -35,6 +35,7 @@ object Main {
 
         println(result.collect() mkString "\n")
 
+        Thread.sleep(100000)
     }
 
 

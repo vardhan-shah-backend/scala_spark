@@ -6,7 +6,7 @@ import org.apache.spark.rdd.RDD
 
 import scala.collection.mutable
 
-object ProductEventCountService {
+object UserProductCountService {
 
     implicit val formats = DefaultFormats
 
@@ -27,26 +27,28 @@ object ProductEventCountService {
     case class UserEvent(id: Option[String], event: Event)
 
 
-    class Count (
-        var impressionCount: Int,
-        var productViewCount: Int,
-        var addedToCartCount: Int,
-        var productOrderCount: Int
-    ) extends Serializable {
+    class Count(
+                   var impressionCount: Int,
+                   var productViewCount: Int,
+                   var addedToCartCount: Int,
+                   var productOrderCount: Int
+               ) extends Serializable {
         override def toString: String = {
             s"ImpressionCount: $impressionCount ProductViewCount: $productViewCount ATCCount: $addedToCartCount ProductOrderCount: $productOrderCount"
         }
     }
 
+    case class UserProductCount(userId: String, productId: String, count: Count)
 
-    def apply(): ProductEventCountService = new ProductEventCountService()
+
+    def apply(): UserProductCountService = new UserProductCountService()
 }
 
-class ProductEventCountService extends Serializable with AbstractService {
+class UserProductCountService extends Serializable with AbstractService {
 
-    import ProductEventCountService._
+    import UserProductCountService._
 
-    type T = (String,Iterable[(String, Count)])
+    type T = UserProductCount
 
     def parseJson(jsonString: String): UserEvent = {
 
@@ -75,40 +77,45 @@ class ProductEventCountService extends Serializable with AbstractService {
             case _ =>
                 OtherOrNoEvent(List())
         }
-        UserEvent(userId,event)
+        UserEvent(userId, event)
     }
 
 
-
-    def eventToCount(events: Iterable[Event]):Iterable[(String,Count)] = {
-        val map: mutable.HashMap[String,Count] = mutable.HashMap()
+    def eventToCount(events: Iterable[Event]): Iterable[(String,Count)] = {
+        val intermediateMap: mutable.HashMap[String, Count] = mutable.HashMap()
 
         events.foreach(event => {
             event.productIds.foreach(productId => {
-                if (!map.contains(productId)) {
-                    map(productId) = new Count(0,0,0,0)
+                if (!intermediateMap.contains(productId)) {
+                    intermediateMap(productId) = new Count(0, 0, 0, 0)
                 }
             })
 
             event match {
-                case x: ProductViewedEvent => x.productIds.foreach(productId => map(productId).productViewCount += 1)
-                case x: PlpScrollEvent => x.productIds.foreach(map(_).impressionCount += 1)
-                case x: ProductOrderedEvent => x.productIds.foreach(map(_).productOrderCount += 1)
-                case x: AddedToCartEvent => x.productIds.foreach(map(_).addedToCartCount += 1)
+                case x: ProductViewedEvent => x.productIds.foreach(productId => intermediateMap(productId).productViewCount += 1)
+                case x: PlpScrollEvent => x.productIds.foreach(intermediateMap(_).impressionCount += 1)
+                case x: ProductOrderedEvent => x.productIds.foreach(intermediateMap(_).productOrderCount += 1)
+                case x: AddedToCartEvent => x.productIds.foreach(intermediateMap(_).addedToCartCount += 1)
                 case _ =>
             }
         })
-        map
+        intermediateMap
     }
 
-    def calculate(data: RDD[String]) = {
+    def calculate(data: RDD[String]): RDD[UserProductCount] = {
         data.map(parseJson).filter({
             case UserEvent(None, event) => false
-            case UserEvent(id,event) if event.productIds.isEmpty => false
+            case UserEvent(id, event) if event.productIds.isEmpty => false
             case _ => true
         }).map(userEvent => (userEvent.id.get, userEvent.event)).groupByKey().persist()
             .mapValues(eventToCount)
+            .flatMap {
+                pair => {
+                    pair._2.map(productCount => UserProductCount(pair._1, productCount._1, productCount._2))
+                }
+            }
     }
+
 
     def resultToString(rdd: RDD[T]) = {
         rdd.map(_.toString)
