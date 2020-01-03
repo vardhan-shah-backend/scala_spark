@@ -3,6 +3,7 @@ package services
 import constants.Constants
 import net.liftweb.json.{DefaultFormats, parse}
 import org.apache.spark.rdd.RDD
+import org.apache.spark.storage.StorageLevel
 
 import scala.collection.mutable
 
@@ -44,7 +45,7 @@ object UserProductCountService {
     def apply(): UserProductCountService = new UserProductCountService()
 }
 
-class UserProductCountService extends Serializable with AbstractService {
+class UserProductCountService(val storageLevel: StorageLevel = StorageLevel.MEMORY_AND_DISK) extends Serializable with AbstractService {
 
     import UserProductCountService._
 
@@ -107,7 +108,9 @@ class UserProductCountService extends Serializable with AbstractService {
             case UserEvent(None, event) => false
             case UserEvent(id, event) if event.productIds.isEmpty => false
             case _ => true
-        }).map(userEvent => (userEvent.id.get, userEvent.event)).groupByKey().persist()
+        }).map(userEvent => (userEvent.id.get, userEvent.event))
+            .groupByKey()
+            .persist(storageLevel)
             .mapValues(eventToCount)
             .flatMap {
                 pair => {

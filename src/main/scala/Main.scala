@@ -19,9 +19,9 @@ object Main {
     val FILE_NAME = "data.txt"
 
 
-    val productEventCountService: AbstractService = UserProductCountService()
+//    val abstractService: AbstractService = UserProductCountService()
 
-    val frequencyMapperService: AbstractService = FrequencyMapperService()
+    val abstractService: AbstractService = FrequencyMapperService()
 
     def main(args: Array[String]): Unit = {
 
@@ -31,7 +31,7 @@ object Main {
 
         val data = sc.textFile(FILE_NAME)
 
-        val result = productEventCountService.calculate(data)
+        val result = abstractService.calculate(data)
 
         println(result.collect() mkString "\n")
 

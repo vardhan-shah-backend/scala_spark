@@ -7,6 +7,7 @@ import constants.Constants
 import net.liftweb.json.JsonAST.JValue
 import net.liftweb.json.{DefaultFormats, parse}
 import org.apache.spark.rdd.RDD
+import org.apache.spark.storage.StorageLevel
 
 import scala.annotation.tailrec
 
@@ -40,15 +41,17 @@ object FrequencyMapperService {
 
     case class UserEvent(anonymousId: String, event: Event)
 
+    case class ProductSeqFrequency(products: List[Product], frequency: Int)
+
     def apply(): FrequencyMapperService = new FrequencyMapperService()
 }
 
 
-class FrequencyMapperService extends Serializable with AbstractService {
+class FrequencyMapperService(val storageLevel: StorageLevel = StorageLevel.MEMORY_AND_DISK) extends Serializable with AbstractService {
 
     import FrequencyMapperService._
 
-    type T = (List[Product], Int)
+    type T = ProductSeqFrequency
 
     private def filteredUserRecoPDP(parsedJson: JValue) = {
 
@@ -105,10 +108,10 @@ class FrequencyMapperService extends Serializable with AbstractService {
 
 
 
-    private def prodSeqFreqMapper(data: RDD[UserEvent]): RDD[(List[Product], Int)] = {
+    private def prodSeqFreqMapper(data: RDD[UserEvent]): RDD[ProductSeqFrequency] = {
         val userGroupedEvents = data
             .map(userEvent => (userEvent.anonymousId, List(userEvent.event)))
-            .reduceByKey((eventList1, eventList2) => eventList1 ++ eventList2).cache()
+            .reduceByKey((eventList1, eventList2) => eventList1 ++ eventList2).persist(storageLevel)
 
         val productSequences: RDD[List[Product]] = userGroupedEvents
             .mapValues(events => extractingPattern(events.sortBy(_.receivedAt)).map(_.reverse))
@@ -116,19 +119,19 @@ class FrequencyMapperService extends Serializable with AbstractService {
 
 
         val prodSeqFreqMap = productSequences.map(productList => (productList, 1)).reduceByKey(_ + _)
-        prodSeqFreqMap
+        prodSeqFreqMap.map(pair => ProductSeqFrequency(pair._1,pair._2))
     }
 
 
-    def resultToString(prodSeqMap: RDD[(List[Product], Int)]): RDD[String] = {
+    def resultToString(prodSeqMap: RDD[T]): RDD[String] = {
 
-        prodSeqMap.map(pair => {
-            (pair._1 mkString " -> ") + " : " + pair._2
+        prodSeqMap.map(entry => {
+            (entry.products mkString " -> ") + " : " + entry.frequency
         })
 
     }
 
-    def calculate(data: RDD[String]): RDD[(List[Product], Int)] = {
+    def calculate(data: RDD[String]): RDD[T] = {
 
         val userEventRDD: RDD[UserEvent] = data.map(parse).filter(filteredUserRecoPDP).map(jsonToObject)
         val mapper = prodSeqFreqMapper(userEventRDD)
