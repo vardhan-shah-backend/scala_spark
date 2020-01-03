@@ -1,3 +1,5 @@
+package constants
+
 object Constants {
     val PROPERTIES = "properties"
     val USER_RECO_PDP_SECTION = "UserRecoPDP"

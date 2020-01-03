@@ -1,12 +1,10 @@
 import java.io.{BufferedWriter, File, FileWriter}
-import java.text.SimpleDateFormat
-import java.util.Date
 
-import org.apache.spark.rdd.RDD
-import org.apache.spark.{RangePartitioner, SparkConf, SparkContext}
-import net.liftweb.json._
 
-import scala.annotation.tailrec
+import constants.Constants
+import org.apache.spark.{SparkConf, SparkContext}
+import services._
+
 
 
 object Main {
@@ -20,9 +18,10 @@ object Main {
 
     val FILE_NAME = "data.txt"
 
-//    val frequencyMapperService = FrequencyMapperService()
 
-    val productEventCountService = ProductEventCountService()
+    val productEventCountService: AbstractService = ProductEventCountService()
+
+    val frequencyMapperService: AbstractService = FrequencyMapperService()
 
     def main(args: Array[String]): Unit = {
 
@@ -35,15 +34,6 @@ object Main {
         val result = productEventCountService.calculate(data)
 
         println(result.collect() mkString "\n")
-//        productEventCountService.resultToString(result).saveAsTextFile("user_product_count")
-
-//        val stringProductSeqs: Array[String] = resultString.collect()
-//
-//        val prettyRepr = resultString.collect() mkString "\n"
-//
-//        writeFile("result.txt",prettyRepr)
-//
-//        println(prettyRepr)
 
     }
 

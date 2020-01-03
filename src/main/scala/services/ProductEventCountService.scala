@@ -1,3 +1,6 @@
+package services
+
+import constants.Constants
 import net.liftweb.json.{DefaultFormats, parse}
 import org.apache.spark.rdd.RDD
 
